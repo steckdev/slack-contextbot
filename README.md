@@ -4,8 +4,9 @@ Slack Context Bot is a Slack bot that leverages OpenAI's API to answer job-relat
 
 ## Features
 
-- **/sendresume**: Upload your resume via a Slack command to store it.
-- **/experience**: Ask how your resume would answer a job-related question, with the bot responding based on the submitted resume.
+- **/setreference**: Set your reference document via a Slack command to store it for limited history for recall.
+- **/setcontext**: Set your context via a Slack command to store it for limited context for the answers
+- **/question**: Ask how based on your context would answer a related question.
 - **OpenAI Integration**: Uses OpenAI's API (GPT) to generate responses.
 - **Rate Limiting**: Limits users to 20 requests per hour.
 - **TypeScript**: TypeScript is used to enforce type safety and maintain cleaner code.

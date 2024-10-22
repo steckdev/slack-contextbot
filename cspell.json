@@ -5,12 +5,15 @@
   "ignorePaths": ["dist", "node_modules"],
   "dictionaries": ["typescript", "node", "softwareTerms"],
   "words": [
+    "addhistory",
     "boltjs",
+    "clearhistory",
     "dotenv",
     "jest",
     "NodeJS",
     "OpenAI",
     "sendcontext",
+    "sethistory",
     "SlackBot",
     "tsc",
     "tsconfig"

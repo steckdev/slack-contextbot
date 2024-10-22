@@ -1,63 +1,58 @@
 interface UserContext {
-  [key: string]: string;
-}
-
-interface UserRequestCounts {
-  count: number;
-  resetTime: number;
+  currentContext: string;
+  history: string[];
 }
 
 export class ContextService {
-  private userContext: UserContext = {};
-  private userRequestCounts: { [key: string]: UserRequestCounts } = {};
+  private userContext: { [key: string]: UserContext } = {};
 
-  private static readonly RATE_LIMIT = 20;
-  private static readonly RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+  saveContext(userId: string, newContext: string): void {
+    const existingContext = this.userContext[userId];
 
-  saveContext(userId: string, context: string): void {
-    this.userContext[userId] = context;
-    this.userRequestCounts[userId] = {
-      count: 0,
-      resetTime: Date.now() + ContextService.RATE_LIMIT_WINDOW_MS,
-    };
+    if (existingContext) {
+      existingContext.history.push(existingContext.currentContext);
+      existingContext.currentContext = newContext;
+    } else {
+      this.userContext[userId] = {
+        currentContext: newContext,
+        history: [],
+      };
+    }
   }
 
   getContext(userId: string): string | null {
-    return this.userContext[userId] || null;
+    return this.userContext[userId]?.currentContext || null;
   }
 
-  canProceedWithRequest(userId: string): boolean {
-    const currentTime = Date.now();
-    const userCountInfo = this.userRequestCounts[userId];
+  getHistory(userId: string): string[] {
+    return this.userContext[userId]?.history || [];
+  }
 
-    if (!userCountInfo) {
-      this.userRequestCounts[userId] = {
-        count: 0,
-        resetTime: currentTime + ContextService.RATE_LIMIT_WINDOW_MS,
+  addToHistory(userId: string, context: string): void {
+    if (this.userContext[userId]) {
+      this.userContext[userId].history.push(context);
+    } else {
+      this.userContext[userId] = {
+        currentContext: "",
+        history: [context],
       };
-      return true;
     }
-
-    if (userCountInfo.count >= ContextService.RATE_LIMIT) {
-      if (currentTime < userCountInfo.resetTime) {
-        return false;
-      } else {
-        userCountInfo.count = 0;
-        userCountInfo.resetTime =
-          currentTime + ContextService.RATE_LIMIT_WINDOW_MS;
-        return true;
-      }
-    }
-
-    userCountInfo.count += 1;
-    return true;
   }
 
-  getTimeUntilReset(userId: string): number {
-    const currentTime = Date.now();
-    const userCountInfo = this.userRequestCounts[userId];
-    return userCountInfo
-      ? Math.ceil((userCountInfo.resetTime - currentTime) / 60000)
-      : 0;
+  clearHistory(userId: string): void {
+    if (this.userContext[userId]) {
+      this.userContext[userId].history = [];
+    }
+  }
+
+  replaceContext(userId: string, newContext: string): void {
+    if (this.userContext[userId]) {
+      this.userContext[userId].currentContext = newContext;
+    } else {
+      this.userContext[userId] = {
+        currentContext: newContext,
+        history: [],
+      };
+    }
   }
 }

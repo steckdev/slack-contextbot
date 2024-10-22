@@ -26,8 +26,13 @@ describe("OpenAIService", () => {
   it("should return a response from the OpenAI API", async () => {
     const context = "This is the context.";
     const question = "What can you tell me about AI?";
+    const history = ["Previous history"];
 
-    const response = await openaiService.generateResponse(context, question);
+    const response = await openaiService.generateResponse(
+      context,
+      history,
+      question,
+    );
 
     expect(response).toBe("AI-generated response");
   });
