@@ -1,18 +1,9 @@
 {
   "version": "0.2",
   "language": "en",
-  "files": [
-    "src/**/*.ts"
-  ],
-  "ignorePaths": [
-    "dist",
-    "node_modules"
-  ],
-  "dictionaries": [
-    "typescript",
-    "node",
-    "softwareTerms"
-  ],
+  "files": ["src/**/*.ts"],
+  "ignorePaths": ["dist", "node_modules"],
+  "dictionaries": ["typescript", "node", "softwareTerms"],
   "words": [
     "boltjs",
     "dotenv",

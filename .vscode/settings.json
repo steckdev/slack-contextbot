@@ -1,0 +1,7 @@
+{
+  "github.copilot.chat.experimental.codeFeedback.instructions": [
+    {
+      "file": "CODE_STYLE.md"
+    }
+  ]
+}

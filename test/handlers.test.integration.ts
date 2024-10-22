@@ -1,28 +1,31 @@
-import {
-  createOpenAIInstance,
-  handleExperience,
-  userContext,
-} from "../src/app";
+import { SlackHandlers } from "../src/handlers/slackHandlers";
+import { OpenAIService } from "../src/services/openaiService";
+import { ContextService } from "../src/services/contextService";
 import { SlackCommandMiddlewareArgs } from "@slack/bolt";
 import dotenv from "dotenv";
-import { OpenAI } from "openai";
 
 // Load the environment variables from .env
 dotenv.config();
 
 // Ensure that real OpenAI API key is used
 describe("Integration Test with OpenAI API", () => {
-  let openai: OpenAI;
+  let openaiService: OpenAIService;
+  let contextService: ContextService;
+  let slackHandlers: SlackHandlers;
 
   beforeAll(() => {
-    openai = createOpenAIInstance();
+    openaiService = new OpenAIService(process.env.OPENAI_API_KEY || "");
+    contextService = new ContextService();
+    slackHandlers = new SlackHandlers(openaiService, contextService);
   });
 
   it("should get a response from OpenAI based on a context and a question", async () => {
     // Set up a real context and user data
     const userId = "U12345";
-    userContext[userId] =
-      "This is a test context with experience in AI and software development.";
+    contextService.saveContext(
+      userId,
+      "This is a test context with experience in AI and software development.",
+    );
 
     // Mock Slack command for /experience
     const mockCommand: SlackCommandMiddlewareArgs["command"] = {
@@ -35,10 +38,11 @@ describe("Integration Test with OpenAI API", () => {
     const mockSay = jest.fn();
 
     // Call the experience handler to trigger OpenAI response
-    await handleExperience(
-      { command: mockCommand, ack: mockAck, say: mockSay } as any,
-      openai
-    );
+    await slackHandlers.handleExperience({
+      command: mockCommand,
+      ack: mockAck,
+      say: mockSay,
+    } as any);
 
     // Ensure ack was called
     expect(mockAck).toHaveBeenCalled();
@@ -48,7 +52,7 @@ describe("Integration Test with OpenAI API", () => {
 
     const sayCall = mockSay.mock.calls[0][0];
     expect(sayCall).toContain(
-      "Here's how your context might answer this question:"
+      "Here's how your context might answer this question:",
     );
   });
 });

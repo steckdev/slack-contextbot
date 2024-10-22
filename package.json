@@ -9,7 +9,7 @@
     "test": "jest",
     "test:integration": "jest --config jest.integration.config.js",
     "lint": "eslint 'src/**/*.{ts,js}'",
-    "lint:fix": "eslint 'src/**/*.{ts,js}' --fix",
+    "lint:fix": "eslint 'src/**/*.{ts,js}' --fix && prettier . --write",
     "compile": "tsc",
     "prepare": "npm run compile",
     "pretest": "npm run compile",
@@ -20,7 +20,8 @@
   "dependencies": {
     "@slack/bolt": "^4.0.0",
     "dotenv": "^16.4.5",
-    "openai": "^4.68.1"
+    "openai": "^4.68.1",
+    "prettier": "^3.3.3"
   },
   "devDependencies": {
     "@types/jest": "^29.5.13",
