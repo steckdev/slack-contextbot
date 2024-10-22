@@ -2,7 +2,6 @@ import { userContext, userRequestCounts } from "../src/app";
 
 describe("ContextBot Business Logic", () => {
   beforeEach(() => {
-    // Reset the data before each test
     for (const key in userContext) {
       delete userContext[key];
     }
@@ -32,9 +31,8 @@ describe("ContextBot Business Logic", () => {
   it("should reset rate limits after one hour", () => {
     const userId = "U12345";
     const now = Date.now();
-    userRequestCounts[userId] = { count: 20, resetTime: now - 1000 }; // simulate past resetTime
+    userRequestCounts[userId] = { count: 20, resetTime: now - 1000 };
 
-    // Simulate a new request after the resetTime
     if (now > userRequestCounts[userId].resetTime) {
       userRequestCounts[userId].count = 0;
       userRequestCounts[userId].resetTime = now + 3600000;
