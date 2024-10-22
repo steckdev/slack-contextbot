@@ -3,5 +3,7 @@
     {
       "file": "CODE_STYLE.md"
     }
-  ]
+  ],
+  "appService.defaultWebAppToDeploy": "/subscriptions/c634a0d0-da6d-402b-a3d0-b5eed1aee1c5/resourceGroups/appsvc_linux_centralus/providers/Microsoft.Web/sites/slack-bot-service",
+  "appService.deploySubpath": "."
 }

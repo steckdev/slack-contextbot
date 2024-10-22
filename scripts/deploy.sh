@@ -27,7 +27,13 @@ az acr login --name ${ACR_NAME}
 echo "Pushing Docker image to Azure Container Registry..."
 docker push ${ACR_NAME}.azurecr.io/${IMAGE_NAME}:latest
 
-# Step 5: Deploy to Azure Container Instance
+# Get the Log Analytics Workspace ID and Key
+WORKSPACE_KEY=$(az monitor log-analytics workspace get-shared-keys \
+  --resource-group ${RESOURCE_GROUP} \
+  --workspace-name ${LOG_WORKSPACE_NAME} \
+  --query primarySharedKey -o tsv)
+
+# Step 5: Deploy to Azure Container Instance with Log Analytics
 echo "Deploying to Azure Container Instance..."
 az container create \
   --resource-group ${RESOURCE_GROUP} \
@@ -43,8 +49,10 @@ az container create \
     SLACK_APP_TOKEN=$SLACK_APP_TOKEN \
     OPENAI_API_KEY=$OPENAI_API_KEY \
     PORT=$PORT \
-  --dns-name-label ${DNS_LABEL} \
+  # --dns-name-label ${DNS_LABEL} \
   --ports 80 \
-  --location ${LOCATION}
+  --location ${LOCATION} \
+  --log-analytics-workspace ${WORKSPACE_ID} \
+  --log-analytics-workspace-key $WORKSPACE_KEY
 
 echo "Deployment completed successfully!"
