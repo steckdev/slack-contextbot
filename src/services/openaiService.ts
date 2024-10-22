@@ -42,14 +42,10 @@ export class OpenAIService {
         max_tokens: 300,
       });
 
-      console.trace(
-        "Sending response: ",
-        aiResponse.choices[0].message.content,
-      );
-
+      console.info("Sending response: ", aiResponse.choices[0].message.content);
       return aiResponse.choices[0].message.content;
     } catch (error) {
-      console.error("Error with OpenAI API:", error);
+      console.error("Error with OpenAI API:", (error as Error).message);
       throw new Error("There was an error processing your request.");
     }
   }

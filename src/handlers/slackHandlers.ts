@@ -18,30 +18,36 @@ export class SlackHandlers {
     this.rateLimitService = rateLimitService;
   }
 
-  handleSetData = async ({ command, ack, say }: SlackCommandMiddlewareArgs) => {
+  handleSetData = async ({
+    command,
+    ack,
+    respond,
+  }: SlackCommandMiddlewareArgs) => {
     await ack();
 
     const userId = command.user_id;
     const contextText = command.text.trim();
 
     if (!contextText) {
-      await say(
-        "Please provide your context text in the message after `/context`.",
-      );
+      await respond({
+        response_type: "ephemeral",
+        text: "Please provide your context text in the message after `/context`.",
+      });
       return;
     }
 
     this.contextService.saveContext(userId, contextText);
 
-    await say(
-      "Your context has been saved! You can now use `/question` to get an answer based on your context.",
-    );
+    await respond({
+      response_type: "ephemeral",
+      text: "Your context has been saved! You can now use `/question` to get an answer based on your context.",
+    });
   };
 
   handleQuestion = async ({
     command,
     ack,
-    say,
+    respond,
   }: SlackCommandMiddlewareArgs) => {
     await ack();
 
@@ -51,19 +57,26 @@ export class SlackHandlers {
     const context = this.contextService.getContext(userId);
     const history = this.contextService.getHistory(userId);
     if (!history) {
-      await say("Please provide your context first using `/addhistory`.");
+      await respond({
+        response_type: "ephemeral",
+        text: "Please provide your context first using `/addhistory`.",
+      });
       return;
     }
     if (!context) {
-      await say("Please provide your context first using `/setcontext`.");
+      await respond({
+        response_type: "ephemeral",
+        text: "Please provide your context first using `/setcontext`.",
+      });
       return;
     }
 
     if (!this.rateLimitService.canProceedWithRequest(userId)) {
       const remainingTime = this.rateLimitService.getTimeUntilReset(userId);
-      await say(
-        `You have reached the limit of 100 requests per hour. Please try again in ${remainingTime} minutes.`,
-      );
+      await respond({
+        response_type: "ephemeral",
+        text: `You have reached the limit of 100 requests per hour. Please try again in ${remainingTime} minutes.`,
+      });
       return;
     }
 
@@ -73,18 +86,22 @@ export class SlackHandlers {
         history,
         question,
       );
-      await say(
-        `Here's how your context might answer this question:\n*${question}*\n\n${answer}`,
-      );
+      await respond({
+        response_type: "ephemeral",
+        text: `Here's how your context might answer this question:\n*${question}*\n\n${answer}`,
+      });
     } catch (error) {
-      await say((error as Error).message);
+      await respond({
+        response_type: "ephemeral",
+        text: (error as Error).message,
+      });
     }
   };
 
   handleAddToHistory = async ({
     command,
     ack,
-    say,
+    respond,
   }: SlackCommandMiddlewareArgs) => {
     await ack();
 
@@ -92,24 +109,33 @@ export class SlackHandlers {
     const historyText = command.text.trim();
 
     if (!historyText) {
-      await say("Please provide text to add to history.");
+      await respond({
+        response_type: "ephemeral",
+        text: "Please provide text to add to history.",
+      });
       return;
     }
 
     this.contextService.addToHistory(userId, historyText);
-    await say("Your history has been updated.");
+    await respond({
+      response_type: "ephemeral",
+      text: "Your history has been updated.",
+    });
   };
 
   handleClearHistory = async ({
     command,
     ack,
-    say,
+    respond,
   }: SlackCommandMiddlewareArgs) => {
     await ack();
 
     const userId = command.user_id;
     this.contextService.clearHistory(userId);
 
-    await say("Your history has been cleared.");
+    await respond({
+      response_type: "ephemeral",
+      text: "Your history has been cleared.",
+    });
   };
 }
