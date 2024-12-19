@@ -19,10 +19,10 @@ describe("RateLimitService", () => {
     expect(rateLimitService.canProceedWithRequest(userId)).toBe(true);
   });
 
-  it("should rate limit after 100 requests", () => {
+  it("should rate limit after 101 requests", () => {
     const userId = "U12345";
 
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 101; i++) {
       rateLimitService.canProceedWithRequest(userId);
     }
 

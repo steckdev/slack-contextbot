@@ -23,12 +23,11 @@ export class RateLimitService {
     if (userCountInfo.count >= RateLimitService.RATE_LIMIT) {
       if (currentTime < userCountInfo.resetTime) {
         return false;
-      } else {
-        userCountInfo.count = 0;
-        userCountInfo.resetTime =
-          currentTime + RateLimitService.RATE_LIMIT_WINDOW_MS;
-        return true;
       }
+      userCountInfo.count = 0;
+      userCountInfo.resetTime =
+        currentTime + RateLimitService.RATE_LIMIT_WINDOW_MS;
+      return true;
     }
 
     userCountInfo.count += 1;
