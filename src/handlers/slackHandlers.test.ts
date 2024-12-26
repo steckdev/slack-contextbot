@@ -1,113 +1,295 @@
-import { SlackHandlers } from "../../src/handlers/slackHandlers";
-import { OpenAIService } from "../../src/services/openaiService";
-import { ContextService } from "../../src/services/contextService";
-import { RateLimitService } from "../../src/services/rateLimitService";
-import { SlackCommandMiddlewareArgs } from "@slack/bolt";
+import { AllMiddlewareArgs, SlackCommandMiddlewareArgs } from '@slack/bolt';
+import { SlackHandlers } from './slackHandlers';
+import { OpenAIService } from '../services/openaiService';
+import { ContextService } from '../services/contextService';
+import { RateLimitService } from '../services/rateLimitService';
 
-const mockSay = jest.fn();
-const mockAck = jest.fn();
+jest.mock('../services/openaiService');
+jest.mock('../services/contextService');
+jest.mock('../services/rateLimitService');
 
-describe("SlackHandlers", () => {
+describe('SlackHandlers', () => {
   let slackHandlers: SlackHandlers;
-  let mockOpenAIService: OpenAIService;
-  let mockContextService: ContextService;
-  let mockRateLimitService: RateLimitService;
+  let openaiService: OpenAIService;
+  let contextService: ContextService;
+  let rateLimitService: RateLimitService;
 
   beforeEach(() => {
-    mockSay.mockClear();
-    mockAck.mockClear();
-
-    mockOpenAIService = {
-      generateResponse: jest.fn().mockResolvedValue("AI-generated response"),
-    } as unknown as OpenAIService;
-
-    mockContextService = {
-      getContext: jest.fn(),
-      saveContext: jest.fn(),
-      addToHistory: jest.fn(),
-      clearHistory: jest.fn(),
-      getHistory: jest.fn(),
-    } as unknown as ContextService;
-
-    mockRateLimitService = {
-      canProceedWithRequest: jest.fn().mockReturnValue(true),
-      getTimeUntilReset: jest.fn().mockReturnValue(5),
-    } as unknown as RateLimitService;
-
-    slackHandlers = new SlackHandlers(
-      mockOpenAIService,
-      mockContextService,
-      mockRateLimitService,
-    );
+    openaiService = new OpenAIService('fake-api-key');
+    contextService = new ContextService();
+    jest.spyOn(contextService, 'saveContext');
+    rateLimitService = new RateLimitService();
+    slackHandlers = new SlackHandlers(openaiService, contextService, rateLimitService);
   });
 
-  it("should handle /sendcontext correctly", async () => {
-    const mockCommand: SlackCommandMiddlewareArgs["command"] = {
-      user_id: "U12345",
-      text: "This is my context.",
-    } as any;
+  describe('handleSetData', () => {
+    it('should save context and respond with success message', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const command = { user_id: 'U123', text: 'context text' } as any;
 
-    await slackHandlers.handleSetData({
-      command: mockCommand,
-      ack: mockAck,
-      say: mockSay,
-    } as any);
+      await slackHandlers.handleSetData({
+        command,
+        ack,
+        respond,
+      } as unknown as SlackCommandMiddlewareArgs);
 
-    expect(mockAck).toHaveBeenCalled();
-    expect(mockContextService.saveContext).toHaveBeenCalledWith(
-      "U12345",
-      "This is my context.",
-    );
-    expect(mockSay).toHaveBeenCalledWith(
-      "Your context has been saved! You can now use `/question` to get an answer based on your context.",
-    );
+      expect(ack).toHaveBeenCalled();
+      expect(contextService.saveContext).toHaveBeenCalledWith('U123', 'context text');
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'Your context has been saved! You can now use `/question` to get an answer based on your context.',
+      });
+    });
+
+    it('should respond with error message if context text is empty', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const command = { user_id: 'U123', text: '' } as any;
+
+      await slackHandlers.handleSetData({
+        command,
+        ack,
+        respond,
+      } as unknown as SlackCommandMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'Please provide your context text in the message after `/context`.',
+      });
+    });
   });
 
-  it("should handle /experience correctly with OpenAI", async () => {
-    (mockContextService.getContext as jest.Mock).mockReturnValue(
-      "This is my context.",
-    );
+  describe('handleQuestion', () => {
+    it('should respond with answer if context and history are available', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const command = { user_id: 'U123', text: 'question' } as any;
+      contextService.getContext = jest.fn().mockReturnValue('context');
+      contextService.getHistory = jest.fn().mockReturnValue('history');
+      rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(true);
+      openaiService.generateResponse = jest.fn().mockResolvedValue('answer');
 
-    const mockCommand: SlackCommandMiddlewareArgs["command"] = {
-      user_id: "U12345",
-      text: "Tell me about AI.",
-    } as any;
+      await slackHandlers.handleQuestion({
+        command,
+        ack,
+        respond,
+      } as unknown as SlackCommandMiddlewareArgs);
 
-    await slackHandlers.handleQuestion({
-      command: mockCommand,
-      ack: mockAck,
-      say: mockSay,
-    } as any);
+      expect(ack).toHaveBeenCalled();
+      expect(openaiService.generateResponse).toHaveBeenCalledWith('context', 'history', 'question');
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        // eslint-disable-next-line quotes
+        text: "Here's how your context might answer this question:\n*question*\n\nanswer",
+      });
+    });
 
-    expect(mockOpenAIService.generateResponse).toHaveBeenCalledWith(
-      "This is my context.",
-      "Tell me about AI.",
-    );
-    expect(mockSay).toHaveBeenCalledWith(
-      "Here's how your context might answer this question:\n*Tell me about AI.*\n\nAI-generated response",
-    );
+    it('should respond with error if context is missing', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const command = { user_id: 'U123', text: 'question' } as any;
+      contextService.getContext = jest.fn().mockReturnValue(null);
+      contextService.getHistory = jest.fn().mockReturnValue('history');
+
+      await slackHandlers.handleQuestion({
+        command,
+        ack,
+        respond,
+      } as unknown as SlackCommandMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'Please provide your context first using `/setcontext`.',
+      });
+    });
+
+    it('should respond with error if history is missing', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const command = { user_id: 'U123', text: 'question' } as any;
+      contextService.getContext = jest.fn().mockReturnValue('context');
+      contextService.getHistory = jest.fn().mockReturnValue(null);
+
+      await slackHandlers.handleQuestion({
+        command,
+        ack,
+        respond,
+      } as unknown as SlackCommandMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'Please provide your context first using `/addhistory`.',
+      });
+    });
+
+    it('should respond with rate limit error if rate limit is exceeded', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const command = { user_id: 'U123', text: 'question' } as any;
+      contextService.getContext = jest.fn().mockReturnValue('context');
+      contextService.getHistory = jest.fn().mockReturnValue('history');
+      rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(false);
+      rateLimitService.getTimeUntilReset = jest.fn().mockReturnValue(10);
+
+      await slackHandlers.handleQuestion({
+        command,
+        ack,
+        respond,
+      } as unknown as SlackCommandMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'You have reached the limit of requests per hour. Please try again in 10 minutes.',
+      });
+    });
   });
 
-  it("should handle rate limiting when the user reaches the limit", async () => {
-    (mockRateLimitService.canProceedWithRequest as jest.Mock).mockReturnValue(
-      false,
-    );
-    const mockCommand: SlackCommandMiddlewareArgs["command"] = {
-      user_id: "U12345",
-      text: "Tell me about AI.",
-    } as any;
+  describe('handleAddToHistory', () => {
+    it('should add to history and respond with success message', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const command = { user_id: 'U123', text: 'history text' } as any;
 
-    await slackHandlers.handleQuestion({
-      command: mockCommand,
-      ack: mockAck,
-      say: mockSay,
-    } as any);
+      await slackHandlers.handleAddToHistory({
+        command,
+        ack,
+        respond,
+      } as unknown as SlackCommandMiddlewareArgs);
 
-    expect(mockRateLimitService.canProceedWithRequest).toHaveBeenCalledWith(
-      "U12345",
-    );
-    expect(mockSay).toHaveBeenCalledWith(
-      "You have reached the limit of 100 requests per hour. Please try again in 5 minutes.",
-    );
+      expect(ack).toHaveBeenCalled();
+      expect(contextService.addToHistory).toHaveBeenCalledWith('U123', 'history text');
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'Your history has been updated.',
+      });
+    });
+
+    it('should respond with error message if history text is empty', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const command = { user_id: 'U123', text: '' } as any;
+
+      await slackHandlers.handleAddToHistory({
+        command,
+        ack,
+        respond,
+      } as unknown as SlackCommandMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'Please provide text to add to history.',
+      });
+    });
+  });
+
+  describe('handleClearHistory', () => {
+    it('should clear history and respond with success message', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const command = { user_id: 'U123' } as any;
+
+      await slackHandlers.handleClearHistory({
+        command,
+        ack,
+        respond,
+      } as unknown as SlackCommandMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(contextService.clearHistory).toHaveBeenCalledWith('U123');
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'Your history has been cleared.',
+      });
+    });
+  });
+
+  describe('handleSummarize', () => {
+    it('should respond with summary of recent messages', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const client = {
+        conversations: {
+          history: jest.fn().mockResolvedValue({ messages: [{ text: 'message' }] }),
+        },
+      };
+      const command = { user_id: 'U123', channel_id: 'C123' } as any;
+      rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(true);
+      openaiService.generateSummary = jest.fn().mockResolvedValue('summary');
+
+      await slackHandlers.handleSummarize({
+        command,
+        ack,
+        respond,
+        client,
+      } as unknown as SlackCommandMiddlewareArgs & AllMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(client.conversations.history).toHaveBeenCalledWith({
+        channel: 'C123',
+        limit: 20,
+      });
+      expect(openaiService.generateSummary).toHaveBeenCalledWith('message');
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'in_channel',
+        text: 'Summary of the recent conversation:\nsummary',
+      });
+    });
+
+    it('should respond with error if no messages are found', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const client = {
+        conversations: {
+          history: jest.fn().mockResolvedValue({ messages: [] }),
+        },
+      };
+      const command = { user_id: 'U123', channel_id: 'C123' } as any;
+      rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(true);
+
+      await slackHandlers.handleSummarize({
+        command,
+        ack,
+        respond,
+        client,
+      } as unknown as SlackCommandMiddlewareArgs & AllMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(client.conversations.history).toHaveBeenCalledWith({
+        channel: 'C123',
+        limit: 20,
+      });
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'No messages found in the channel.',
+      });
+    });
+
+    it('should respond with rate limit error if rate limit is exceeded', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const client = { conversations: { history: jest.fn() } };
+      const command = { user_id: 'U123', channel_id: 'C123' } as any;
+      rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(false);
+      rateLimitService.getTimeUntilReset = jest.fn().mockReturnValue(10);
+
+      await slackHandlers.handleSummarize({
+        command,
+        ack,
+        respond,
+        client,
+      } as unknown as SlackCommandMiddlewareArgs & AllMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'You have reached the limit of requests per hour. Please try again in 10 minutes.',
+      });
+    });
   });
 });

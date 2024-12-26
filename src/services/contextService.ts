@@ -33,7 +33,7 @@ export class ContextService {
       this.userContext[userId].history.push(context);
     } else {
       this.userContext[userId] = {
-        currentContext: "",
+        currentContext: '',
         history: [context],
       };
     }

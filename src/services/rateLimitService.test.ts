@@ -1,14 +1,14 @@
-import { RateLimitService } from "../../src/services/rateLimitService";
+import { RateLimitService } from './rateLimitService';
 
-describe("RateLimitService", () => {
+describe('RateLimitService', () => {
   let rateLimitService: RateLimitService;
 
   beforeEach(() => {
     rateLimitService = new RateLimitService();
   });
 
-  it("should allow requests under the rate limit", () => {
-    const userId = "U12345";
+  it('should allow requests under the rate limit', () => {
+    const userId = 'U12345';
 
     expect(rateLimitService.canProceedWithRequest(userId)).toBe(true);
 
@@ -19,8 +19,8 @@ describe("RateLimitService", () => {
     expect(rateLimitService.canProceedWithRequest(userId)).toBe(true);
   });
 
-  it("should rate limit after 101 requests", () => {
-    const userId = "U12345";
+  it('should rate limit after 101 requests', () => {
+    const userId = 'U12345';
 
     for (let i = 0; i < 101; i++) {
       rateLimitService.canProceedWithRequest(userId);
@@ -29,8 +29,8 @@ describe("RateLimitService", () => {
     expect(rateLimitService.canProceedWithRequest(userId)).toBe(false);
   });
 
-  it("should return time until reset", () => {
-    const userId = "U12345";
+  it('should return time until reset', () => {
+    const userId = 'U12345';
     rateLimitService.canProceedWithRequest(userId);
 
     const timeUntilReset = rateLimitService.getTimeUntilReset(userId);

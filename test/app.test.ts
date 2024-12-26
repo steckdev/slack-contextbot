@@ -1,6 +1,6 @@
-import { userContext, userRequestCounts } from "../src/app";
+import { userContext, userRequestCounts } from '../src/app';
 
-describe("ContextBot Business Logic", () => {
+describe('ContextBot Business Logic', () => {
   beforeEach(() => {
     for (const key in userContext) {
       delete userContext[key];
@@ -10,17 +10,17 @@ describe("ContextBot Business Logic", () => {
     }
   });
 
-  it("should store a context for a user", () => {
-    const userId = "U12345";
-    const contextText = "This is my context";
+  it('should store a context for a user', () => {
+    const userId = 'U12345';
+    const contextText = 'This is my context';
 
     userContext[userId] = contextText;
 
     expect(userContext[userId]).toBe(contextText);
   });
 
-  it("should apply rate limits correctly", () => {
-    const userId = "U12345";
+  it('should apply rate limits correctly', () => {
+    const userId = 'U12345';
     userRequestCounts[userId] = { count: 19, resetTime: Date.now() + 1000 };
 
     expect(userRequestCounts[userId].count).toBe(19);
@@ -28,8 +28,8 @@ describe("ContextBot Business Logic", () => {
     expect(userRequestCounts[userId].count).toBe(20);
   });
 
-  it("should reset rate limits after one hour", () => {
-    const userId = "U12345";
+  it('should reset rate limits after one hour', () => {
+    const userId = 'U12345';
     const now = Date.now();
     userRequestCounts[userId] = { count: 20, resetTime: now - 1000 };
 

@@ -2,9 +2,7 @@
   "recommendations": [
     "dbaeumer.vscode-eslint",
     "vscode.typescript-language-features",
-    "ms-vscode.vscode-typescript-tslint-plugin",
     "Orta.vscode-jest",
-    "ms-vscode.node-debug2",
     "streetsidesoftware.code-spell-checker"
   ]
 }

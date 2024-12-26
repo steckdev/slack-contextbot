@@ -5,7 +5,9 @@ interface UserRequestCounts {
 
 export class RateLimitService {
   private userRequestCounts: { [key: string]: UserRequestCounts } = {};
+
   private static readonly RATE_LIMIT = 100;
+
   private static readonly RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
   canProceedWithRequest(userId: string): boolean {
@@ -25,8 +27,7 @@ export class RateLimitService {
         return false;
       }
       userCountInfo.count = 0;
-      userCountInfo.resetTime =
-        currentTime + RateLimitService.RATE_LIMIT_WINDOW_MS;
+      userCountInfo.resetTime = currentTime + RateLimitService.RATE_LIMIT_WINDOW_MS;
       return true;
     }
 
@@ -37,8 +38,6 @@ export class RateLimitService {
   getTimeUntilReset(userId: string): number {
     const currentTime = Date.now();
     const userCountInfo = this.userRequestCounts[userId];
-    return userCountInfo
-      ? Math.ceil((userCountInfo.resetTime - currentTime) / 60000)
-      : 0;
+    return userCountInfo ? Math.ceil((userCountInfo.resetTime - currentTime) / 60000) : 0;
   }
 }
