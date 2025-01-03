@@ -1,0 +1,80 @@
+{
+  "display_information": {
+    "name": "ContextBot",
+    "description": "A bot to manage context and history, answer questions, and summarize threads.",
+    "background_color": "#36C5F0"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "ContextBot",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/setcontext",
+        "description": "Set the main topic or context for the bot to use.",
+        "usage_hint": "Example: \"Project details or important information\"",
+        "should_escape": false
+      },
+      {
+        "command": "/addhistory",
+        "description": "Add additional information or history for the bot to remember.",
+        "usage_hint": "Example: \"Meeting notes or past conversations\"",
+        "should_escape": false
+      },
+      {
+        "command": "/clearhistory",
+        "description": "Remove all previously added information.",
+        "usage_hint": "Example: \"Clear all past notes and history\"",
+        "should_escape": false
+      },
+      {
+        "command": "/question",
+        "description": "Ask the bot a question based on the current context and history.",
+        "usage_hint": "Example: \"What is the status of the project?\"",
+        "should_escape": false
+      },
+      {
+        "command": "/summarize_thread",
+        "description": "Get a summary of the current thread.",
+        "usage_hint": "Example: \"/summarize_thread\"",
+        "should_escape": false
+      },
+      {
+        "command": "/summarize_channel",
+        "description": "Get a summary of the recent messages in the channel up to a certain number of days.",
+        "usage_hint": "Example: \"/summarize_channel <days>\"",
+        "should_escape": false
+      }
+    ],
+    "shortcuts": [
+      {
+        "name": "Summarize Thread",
+        "type": "message",
+        "callback_id": "summarize_thread_shortcut",
+        "description": "Get a summary of the entire thread."
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "commands",
+        "chat:write",
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "mpim:history",
+        "users:read"
+      ]
+    }
+  },
+  "settings": {
+    "interactivity": {
+      "is_enabled": true
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}

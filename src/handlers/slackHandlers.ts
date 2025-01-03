@@ -1,9 +1,11 @@
+/* eslint-disable complexity */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prettier/prettier */
-import { AllMiddlewareArgs, SlackCommandMiddlewareArgs } from '@slack/bolt';
+import { AllMiddlewareArgs, SlackCommandMiddlewareArgs, SlackShortcutMiddlewareArgs } from '@slack/bolt';
 import { OpenAIService } from '../services/openaiService';
 import { ContextService } from '../services/contextService';
 import { RateLimitService } from '../services/rateLimitService';
+import { SlackService } from '../services/slackService';
 
 export class SlackHandlers {
   private openaiService: OpenAIService;
@@ -12,10 +14,18 @@ export class SlackHandlers {
 
   private rateLimitService: RateLimitService;
 
-  constructor(openaiService: OpenAIService, contextService: ContextService, rateLimitService: RateLimitService) {
+  private slackService: SlackService;
+
+  constructor(
+    openaiService: OpenAIService,
+    contextService: ContextService,
+    rateLimitService: RateLimitService,
+    slackService: SlackService
+  ) {
     this.openaiService = openaiService;
     this.contextService = contextService;
     this.rateLimitService = rateLimitService;
+    this.slackService = slackService;
   }
 
   handleSetData = async ({ command, ack, respond }: SlackCommandMiddlewareArgs) => {
@@ -25,13 +35,16 @@ export class SlackHandlers {
     const contextText = command.text.trim();
 
     if (!contextText) {
-      await this.respondEphemeral(respond, 'Please provide your context text in the message after `/context`.');
+      await this.slackService.respondEphemeral(
+        respond,
+        'Please provide your context text in the message after `/context`.'
+      );
       return;
     }
 
     this.contextService.saveContext(userId, contextText);
 
-    await this.respondEphemeral(
+    await this.slackService.respondEphemeral(
       respond,
       'Your context has been saved! You can now use `/question` to get an answer based on your context.'
     );
@@ -47,28 +60,31 @@ export class SlackHandlers {
     const history = this.contextService.getHistory(userId);
 
     if (!history) {
-      await this.respondEphemeral(respond, 'Please provide your context first using `/addhistory`.');
+      await this.slackService.respondEphemeral(respond, 'Please provide your context first using `/addhistory`.');
       return;
     }
 
     if (!context) {
-      await this.respondEphemeral(respond, 'Please provide your context first using `/setcontext`.');
+      await this.slackService.respondEphemeral(respond, 'Please provide your context first using `/setcontext`.');
       return;
     }
 
     if (!this.rateLimitService.canProceedWithRequest(userId)) {
-      await this.respondWithRateLimitError(userId, respond);
+      await this.slackService.respondWithRateLimitError(userId, this.rateLimitService, respond);
       return;
     }
 
+    // FIX NULL for handle question
     try {
-      const answer = await this.openaiService.generateResponse(context, history, question);
-      await this.respondEphemeral(
+      const metadata = await this.openaiService.generateEnhancedMetadata(context, null as any);
+      const answer = await this.openaiService.generateResponseWithMetadata(context, metadata, question);
+      await this.slackService.respondEphemeral(
         respond,
         `Here's how your context might answer this question:\n*${question}*\n\n${answer}`
       );
     } catch (_error) {
-      await this.respondEphemeral(respond, (_error as Error).message);
+      console.error(_error);
+      await this.slackService.respondEphemeral(respond, (_error as Error).message);
     }
   };
 
@@ -79,12 +95,12 @@ export class SlackHandlers {
     const historyText = command.text.trim();
 
     if (!historyText) {
-      await this.respondEphemeral(respond, 'Please provide text to add to history.');
+      await this.slackService.respondEphemeral(respond, 'Please provide text to add to history.');
       return;
     }
 
     this.contextService.addToHistory(userId, historyText);
-    await this.respondEphemeral(respond, 'Your history has been updated.');
+    await this.slackService.respondEphemeral(respond, 'Your history has been updated.');
   };
 
   handleClearHistory = async ({ command, ack, respond }: SlackCommandMiddlewareArgs) => {
@@ -93,66 +109,180 @@ export class SlackHandlers {
     const userId = command.user_id;
     this.contextService.clearHistory(userId);
 
-    await this.respondEphemeral(respond, 'Your history has been cleared.');
+    await this.slackService.respondEphemeral(respond, 'Your history has been cleared.');
   };
 
-  handleSummarize = async ({ command, ack, respond, client }: SlackCommandMiddlewareArgs & AllMiddlewareArgs) => {
+  // This cannot be used in a thread
+  handleSummarizeThread = async ({
+    command,
+    ack,
+    respond,
+    client,
+    context,
+  }: SlackCommandMiddlewareArgs & AllMiddlewareArgs) => {
     await ack();
 
+    console.log('Thread Context:', { threadTs: command, messageTs: context });
+
     const userId = command.user_id;
+    const threadTs = command.thread_ts || context.message_ts;
+
+    if (!threadTs) {
+      await this.slackService.respondEphemeral(respond, 'This command must be used within a thread.');
+      return;
+    }
 
     if (!this.rateLimitService.canProceedWithRequest(userId)) {
-      await this.respondWithRateLimitError(userId, respond);
+      await this.slackService.respondWithRateLimitError(userId, this.rateLimitService, respond);
       return;
     }
 
     try {
-      const messages = await this.fetchRecentMessages(client, command.channel_id);
+      const { messages, userIds } = await this.slackService.fetchThreadMessagesWithEnrichment(
+        client,
+        command.channel_id,
+        threadTs
+      );
 
       if (!messages) {
-        await this.respondEphemeral(respond, 'No messages found in the channel.');
+        await this.slackService.respondEphemeral(respond, 'No messages found in the thread.');
         return;
       }
 
-      const summary = await this.openaiService.generateSummary(messages);
+      const userInfo = await this.slackService.fetchAndEnrichUserInfo(client, userIds);
+      const namedMessages = messages.map((message) => `${userInfo[message.user]} - ${message.text}`).join('\n');
 
-      await respond({
-        response_type: 'in_channel',
-        text: `Summary of the recent conversation:\n${summary}`,
+      const metadata = await this.openaiService.generateEnhancedMetadata(namedMessages, userInfo);
+
+      const summary = await this.openaiService.generateSummary(namedMessages, {
+        focus: 'action items',
+        length: 'short',
       });
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
+      await this.slackService.respondWithSummary(respond, summary, metadata);
     } catch (_error) {
-      await this.respondEphemeral(respond, 'There was an error processing your request.');
+      await this.slackService.respondEphemeral(respond, 'There was an error processing your request.');
     }
   };
 
-  private async respondEphemeral(respond: any, text: string) {
-    await respond({
-      response_type: 'ephemeral',
-      text,
-    });
-  }
+  handleSummarizeChannel = async ({
+    command,
+    ack,
+    respond,
+    client,
+  }: SlackCommandMiddlewareArgs & AllMiddlewareArgs) => {
+    await ack();
 
-  private async respondWithRateLimitError(userId: string, respond: any) {
-    const remainingTime = this.rateLimitService.getTimeUntilReset(userId);
-    await this.respondEphemeral(
-      respond,
-      `You have reached the limit of requests per hour. Please try again in ${remainingTime} minutes.`
-    );
-  }
+    const userId = command.user_id;
+    const args = command.text.trim().split(' ');
+    const days = parseInt(args[0], 10) || 14;
+    const focus = args[1] || 'general';
 
-  private async fetchRecentMessages(client: any, channelId: string): Promise<string | null> {
-    const result = await client.conversations.history({
+    if (days > 14) {
+      await this.slackService.respondEphemeral(respond, 'You can only summarize messages from the past 14 days.');
+      return;
+    }
+
+    if (!this.rateLimitService.canProceedWithRequest(userId)) {
+      await this.slackService.respondWithRateLimitError(userId, this.rateLimitService, respond);
+      return;
+    }
+
+    try {
+      const { messages, enrichedContext, userIds } = await this.slackService.fetchRecentMessagesWithEnrichment(
+        client,
+        command.channel_id,
+        days
+      );
+
+      if (!messages) {
+        await this.slackService.respondEphemeral(respond, 'No messages found in the channel.');
+        return;
+      }
+
+      const userInfo = await this.slackService.fetchAndEnrichUserInfo(client, userIds);
+
+      const summary = await this.openaiService.generateSummary(messages.join('\n'), { focus, length: 'short' });
+
+      const metadata = await this.openaiService.generateEnhancedMetadata(enrichedContext, userInfo);
+
+      await this.slackService.respondWithSummary(respond, summary, metadata);
+    } catch (_error) {
+      await this.slackService.respondEphemeral(respond, 'There was an error processing your request.');
+    }
+  };
+
+  handleSummarizeThreadShortcut = async ({
+    shortcut,
+    ack,
+    respond,
+    client,
+    context,
+  }: SlackShortcutMiddlewareArgs & AllMiddlewareArgs) => {
+    await ack();
+
+    const userId = shortcut.user.id;
+    const threadTs = (shortcut as any).message_ts;
+    const channelId = (shortcut as any).channel.id;
+
+    if (!threadTs) {
+      await this.slackService.respondEphemeral(respond, 'This shortcut must be used within a thread.');
+      return;
+    }
+
+    if (!this.rateLimitService.canProceedWithRequest(userId)) {
+      await this.slackService.respondWithRateLimitError(userId, this.rateLimitService, respond);
+      return;
+    }
+
+    console.log(`Processing request to summarize for ${userId} and ${threadTs}`);
+
+    // Initial response using chat.postMessage
+    const initialResponse = await client.chat.postMessage({
       channel: channelId,
-      limit: 20,
+      text: 'Processing your request, please wait...',
     });
 
-    const messages = result.messages
-      ?.filter((message: any) => !message.subtype)
-      .map((message: any) => message.text)
-      .reverse()
-      .join('\n');
+    const initialResponseTs = initialResponse.ts as string; // Capture the timestamp of the initial response
 
-    return messages || null;
-  }
+    try {
+      const { messages, userIds } = await this.slackService.fetchThreadMessagesWithEnrichment(
+        client,
+        channelId,
+        threadTs
+      );
+
+      if (!messages) {
+        await this.slackService.respondEphemeral(respond, 'No messages found in the thread.');
+        return;
+      }
+
+      const userInfo = await this.slackService.fetchAndEnrichUserInfo(client, userIds);
+
+      const namedMessages = messages.map((message) => `${userInfo[message.user]} - ${message.text}`).join('\n');
+      console.log('Leveraging AI to generate metadata and summary for chat');
+
+      const metadata = await this.openaiService.generateEnhancedMetadata(namedMessages, userInfo);
+
+      const summary = await this.openaiService.generateSummary(namedMessages, {
+        focus: 'action items',
+        length: 'short',
+      });
+
+      // Update the initial response with the final summary
+      console.log('Updating response to chat');
+      await client.chat.update({
+        channel: channelId,
+        ts: initialResponseTs, // Use the correct timestamp
+        blocks: this.slackService.createSummaryBlocks(summary, metadata),
+      });
+    } catch (_error) {
+      console.error(_error);
+      await client.chat.update({
+        channel: channelId,
+        ts: initialResponseTs, // Use the correct timestamp
+        text: 'There was an error processing your request.',
+      });
+    }
+  };
 }

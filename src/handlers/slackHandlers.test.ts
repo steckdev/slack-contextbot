@@ -3,23 +3,27 @@ import { SlackHandlers } from './slackHandlers';
 import { OpenAIService } from '../services/openaiService';
 import { ContextService } from '../services/contextService';
 import { RateLimitService } from '../services/rateLimitService';
+import { SlackService } from '../services/slackService';
 
 jest.mock('../services/openaiService');
 jest.mock('../services/contextService');
 jest.mock('../services/rateLimitService');
+jest.mock('../services/slackService');
 
 describe('SlackHandlers', () => {
   let slackHandlers: SlackHandlers;
   let openaiService: OpenAIService;
   let contextService: ContextService;
   let rateLimitService: RateLimitService;
+  let slackService: SlackService;
 
   beforeEach(() => {
     openaiService = new OpenAIService('fake-api-key');
     contextService = new ContextService();
     jest.spyOn(contextService, 'saveContext');
     rateLimitService = new RateLimitService();
-    slackHandlers = new SlackHandlers(openaiService, contextService, rateLimitService);
+    slackService = new SlackService();
+    slackHandlers = new SlackHandlers(openaiService, contextService, rateLimitService, slackService);
   });
 
   describe('handleSetData', () => {
@@ -81,7 +85,6 @@ describe('SlackHandlers', () => {
       expect(openaiService.generateResponse).toHaveBeenCalledWith('context', 'history', 'question');
       expect(respond).toHaveBeenCalledWith({
         response_type: 'ephemeral',
-        // eslint-disable-next-line quotes
         text: "Here's how your context might answer this question:\n*question*\n\nanswer",
       });
     });
@@ -209,8 +212,96 @@ describe('SlackHandlers', () => {
     });
   });
 
-  describe('handleSummarize', () => {
-    it('should respond with summary of recent messages', async () => {
+  describe('handleSummarizeThread', () => {
+    it('should respond with summary of a specific thread', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const client = {
+        conversations: {
+          replies: jest.fn().mockResolvedValue({ messages: [{ text: 'message' }] }),
+        },
+      };
+      const command = { user_id: 'U123', channel_id: 'C123', text: 'thread_ts' } as any;
+      rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(true);
+      openaiService.generateSummary = jest.fn().mockResolvedValue('summary');
+
+      await slackHandlers.handleSummarizeThread({
+        command,
+        ack,
+        respond,
+        client,
+      } as unknown as SlackCommandMiddlewareArgs & AllMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(client.conversations.replies).toHaveBeenCalledWith({
+        channel: 'C123',
+        ts: 'thread_ts',
+        limit: 100,
+        cursor: undefined,
+      });
+      expect(openaiService.generateSummary).toHaveBeenCalledWith('message');
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'in_channel',
+        text: 'Summary of the thread:\nsummary',
+      });
+    });
+
+    it('should respond with error if no messages are found in the thread', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const client = {
+        conversations: {
+          replies: jest.fn().mockResolvedValue({ messages: [] }),
+        },
+      };
+      const command = { user_id: 'U123', channel_id: 'C123', text: 'thread_ts' } as any;
+      rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(true);
+
+      await slackHandlers.handleSummarizeThread({
+        command,
+        ack,
+        respond,
+        client,
+      } as unknown as SlackCommandMiddlewareArgs & AllMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(client.conversations.replies).toHaveBeenCalledWith({
+        channel: 'C123',
+        ts: 'thread_ts',
+        limit: 100,
+        cursor: undefined,
+      });
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'No messages found in the thread.',
+      });
+    });
+
+    it('should respond with rate limit error if rate limit is exceeded', async () => {
+      const ack = jest.fn();
+      const respond = jest.fn();
+      const client = { conversations: { replies: jest.fn() } };
+      const command = { user_id: 'U123', channel_id: 'C123', text: 'thread_ts' } as any;
+      rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(false);
+      rateLimitService.getTimeUntilReset = jest.fn().mockReturnValue(10);
+
+      await slackHandlers.handleSummarizeThread({
+        command,
+        ack,
+        respond,
+        client,
+      } as unknown as SlackCommandMiddlewareArgs & AllMiddlewareArgs);
+
+      expect(ack).toHaveBeenCalled();
+      expect(respond).toHaveBeenCalledWith({
+        response_type: 'ephemeral',
+        text: 'You have reached the limit of requests per hour. Please try again in 10 minutes.',
+      });
+    });
+  });
+
+  describe('handleSummarizeChannel', () => {
+    it('should respond with summary of recent messages in the channel', async () => {
       const ack = jest.fn();
       const respond = jest.fn();
       const client = {
@@ -218,11 +309,11 @@ describe('SlackHandlers', () => {
           history: jest.fn().mockResolvedValue({ messages: [{ text: 'message' }] }),
         },
       };
-      const command = { user_id: 'U123', channel_id: 'C123' } as any;
+      const command = { user_id: 'U123', channel_id: 'C123', text: '7' } as any;
       rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(true);
       openaiService.generateSummary = jest.fn().mockResolvedValue('summary');
 
-      await slackHandlers.handleSummarize({
+      await slackHandlers.handleSummarizeChannel({
         command,
         ack,
         respond,
@@ -232,7 +323,9 @@ describe('SlackHandlers', () => {
       expect(ack).toHaveBeenCalled();
       expect(client.conversations.history).toHaveBeenCalledWith({
         channel: 'C123',
-        limit: 20,
+        oldest: expect.any(Number),
+        limit: 100,
+        cursor: undefined,
       });
       expect(openaiService.generateSummary).toHaveBeenCalledWith('message');
       expect(respond).toHaveBeenCalledWith({
@@ -241,7 +334,7 @@ describe('SlackHandlers', () => {
       });
     });
 
-    it('should respond with error if no messages are found', async () => {
+    it('should respond with error if no messages are found in the channel', async () => {
       const ack = jest.fn();
       const respond = jest.fn();
       const client = {
@@ -249,10 +342,10 @@ describe('SlackHandlers', () => {
           history: jest.fn().mockResolvedValue({ messages: [] }),
         },
       };
-      const command = { user_id: 'U123', channel_id: 'C123' } as any;
+      const command = { user_id: 'U123', channel_id: 'C123', text: '7' } as any;
       rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(true);
 
-      await slackHandlers.handleSummarize({
+      await slackHandlers.handleSummarizeChannel({
         command,
         ack,
         respond,
@@ -262,7 +355,9 @@ describe('SlackHandlers', () => {
       expect(ack).toHaveBeenCalled();
       expect(client.conversations.history).toHaveBeenCalledWith({
         channel: 'C123',
-        limit: 20,
+        oldest: expect.any(Number),
+        limit: 100,
+        cursor: undefined,
       });
       expect(respond).toHaveBeenCalledWith({
         response_type: 'ephemeral',
@@ -274,11 +369,11 @@ describe('SlackHandlers', () => {
       const ack = jest.fn();
       const respond = jest.fn();
       const client = { conversations: { history: jest.fn() } };
-      const command = { user_id: 'U123', channel_id: 'C123' } as any;
+      const command = { user_id: 'U123', channel_id: 'C123', text: '7' } as any;
       rateLimitService.canProceedWithRequest = jest.fn().mockReturnValue(false);
       rateLimitService.getTimeUntilReset = jest.fn().mockReturnValue(10);
 
-      await slackHandlers.handleSummarize({
+      await slackHandlers.handleSummarizeChannel({
         command,
         ack,
         respond,
