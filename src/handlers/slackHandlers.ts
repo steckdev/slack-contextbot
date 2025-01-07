@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /* eslint-disable complexity */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prettier/prettier */
@@ -112,7 +113,7 @@ export class SlackHandlers {
     await this.slackService.respondEphemeral(respond, 'Your history has been cleared.');
   };
 
-  // This cannot be used in a thread
+  // post chat
   handleSummarizeThread = async ({
     command,
     ack,
@@ -126,6 +127,7 @@ export class SlackHandlers {
 
     const userId = command.user_id;
     const threadTs = command.thread_ts || context.message_ts;
+    const channelId = command.channel.id;
 
     if (!threadTs) {
       await this.slackService.respondEphemeral(respond, 'This command must be used within a thread.');
@@ -136,6 +138,13 @@ export class SlackHandlers {
       await this.slackService.respondWithRateLimitError(userId, this.rateLimitService, respond);
       return;
     }
+
+    const initialResponse = await client.chat.postMessage({
+      channel: channelId,
+      text: 'Processing your request, please wait...',
+    });
+
+    const initialResponseTs = initialResponse.ts as string; // Capture the timestamp of the initial response
 
     try {
       const { messages, userIds } = await this.slackService.fetchThreadMessagesWithEnrichment(
@@ -160,11 +169,24 @@ export class SlackHandlers {
       });
 
       await this.slackService.respondWithSummary(respond, summary, metadata);
+
+      console.log('Updating response to chat');
+      await client.chat.update({
+        channel: channelId,
+        ts: initialResponseTs, // Use the correct timestamp
+        blocks: this.slackService.createSummaryBlocks(summary, metadata),
+      });
     } catch (_error) {
-      await this.slackService.respondEphemeral(respond, 'There was an error processing your request.');
+      console.error(_error);
+      await client.chat.update({
+        channel: channelId,
+        ts: initialResponseTs, // Use the correct timestamp
+        text: 'There was an error processing your request.',
+      });
     }
   };
 
+  // post chat
   handleSummarizeChannel = async ({
     command,
     ack,
@@ -212,13 +234,9 @@ export class SlackHandlers {
     }
   };
 
-  handleSummarizeThreadShortcut = async ({
-    shortcut,
-    ack,
-    respond,
-    client,
-    context,
-  }: SlackShortcutMiddlewareArgs & AllMiddlewareArgs) => {
+  // post chat
+  handleSummarizeThreadShortcut = async (args: any) => {
+    const { shortcut, ack, respond, client, context } = args;
     await ack();
 
     const userId = shortcut.user.id;
@@ -240,6 +258,7 @@ export class SlackHandlers {
     // Initial response using chat.postMessage
     const initialResponse = await client.chat.postMessage({
       channel: channelId,
+      thread_ts: threadTs,
       text: 'Processing your request, please wait...',
     });
 
@@ -282,6 +301,27 @@ export class SlackHandlers {
         channel: channelId,
         ts: initialResponseTs, // Use the correct timestamp
         text: 'There was an error processing your request.',
+      });
+    }
+  };
+
+  handleButtonActions = async ({ body, ack, respond, client }: any) => {
+    await ack();
+
+    const actionId = body.actions[0].action_id;
+    const channelId = body.channel.id;
+    const messageTs = body.message.ts;
+
+    if (actionId === 'share_to_channel') {
+      await client.chat.postMessage({
+        channel: channelId,
+        text: 'Summary shared with the channel!',
+        thread_ts: messageTs, // Optional: share as a threaded message
+      });
+    } else if (actionId === 'dismiss') {
+      await client.chat.delete({
+        channel: channelId,
+        ts: messageTs,
       });
     }
   };

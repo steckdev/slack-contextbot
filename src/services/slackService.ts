@@ -152,6 +152,27 @@ export class SlackService {
           },
         ],
       },
+      // {
+      //   type: 'actions',
+      //   elements: [
+      //     {
+      //       type: 'button',
+      //       text: {
+      //         type: 'plain_text',
+      //         text: 'Share to Channel',
+      //       },
+      //       action_id: 'share_to_channel',
+      //     },
+      //     {
+      //       type: 'button',
+      //       text: {
+      //         type: 'plain_text',
+      //         text: 'Dismiss',
+      //       },
+      //       action_id: 'dismiss',
+      //     },
+      //   ],
+      // },
     ];
   }
 

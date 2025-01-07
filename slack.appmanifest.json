@@ -61,6 +61,8 @@
       "bot": [
         "commands",
         "chat:write",
+        "chat:write.public",
+        "chat:delete",
         "channels:history",
         "groups:history",
         "im:history",
@@ -73,8 +75,11 @@
     "interactivity": {
       "is_enabled": true
     },
-    "org_deploy_enabled": false,
     "socket_mode_enabled": true,
-    "token_rotation_enabled": false
+    "event_subscriptions": {
+      "enabled": true,
+      "request_url": "https://your-app-endpoint",
+      "events": ["message_actions", "app_mention"]
+    }
   }
 }

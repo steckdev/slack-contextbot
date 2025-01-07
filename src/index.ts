@@ -1,4 +1,4 @@
-import { App, LogLevel } from '@slack/bolt';
+import { App, ExpressReceiver, LogLevel } from '@slack/bolt';
 import dotenv from 'dotenv';
 import { OpenAIService } from './services/openaiService';
 import { ContextService } from './services/contextService';
@@ -13,11 +13,17 @@ const contextService = new ContextService();
 const rateLimitService = new RateLimitService();
 const slackService = new SlackService();
 
+// const receiver = new ExpressReceiver({
+//   signingSecret: process.env.SLACK_SIGNING_SECRET || '',
+//   endpoints: '/slack/events',
+// });
+
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN || '',
   appToken: process.env.SLACK_APP_TOKEN || '',
   socketMode: true,
   port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
+  // receiver,
   logLevel: LogLevel.INFO, // Enable debugging
 });
 
@@ -41,7 +47,10 @@ app.event('app_mention', async ({ event, say }) => {
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 (async () => {
-  await app.start();
+  const port = process.env.PORT || 3000;
+  await app.start(port);
   // eslint-disable-next-line no-console
-  console.log('⚡️ Slack Context Bot is running!');
+
+  console.log(`⚡️ Slack Context Bot is running ⚡️`);
+  // console.log(`⚡️ Slack Context Bot is running Port: http://localhost:${process.env.PORT || 3000} ⚡️`);
 })();
