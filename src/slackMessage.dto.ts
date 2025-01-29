@@ -1,5 +1,6 @@
 export interface SlackMessageDTO {
   blocks?: any[];
+  bot_profile?: any;
   is_locked?: boolean;
   latest_reply?: string;
   parent_user_id?: string;

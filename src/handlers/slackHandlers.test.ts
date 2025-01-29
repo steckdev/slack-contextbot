@@ -3,27 +3,37 @@ import { SlackHandlers } from './slackHandlers';
 import { OpenAIService } from '../services/openaiService';
 import { ContextService } from '../services/contextService';
 import { RateLimitService } from '../services/rateLimitService';
-import { SlackService } from '../services/slackService';
+import { SlackSummaryService } from '../services/slackSummaryService';
+import { SlackQuestionService } from '../services/slackQuestionService';
 
 jest.mock('../services/openaiService');
 jest.mock('../services/contextService');
 jest.mock('../services/rateLimitService');
-jest.mock('../services/slackService');
+jest.mock('../services/slackSummaryService');
+jest.mock('../services/slackQuestionService');
 
 describe('SlackHandlers', () => {
   let slackHandlers: SlackHandlers;
   let openaiService: OpenAIService;
   let contextService: ContextService;
   let rateLimitService: RateLimitService;
-  let slackService: SlackService;
+  let slackSummaryService: SlackSummaryService;
+  let slackQuestionService: SlackQuestionService;
 
   beforeEach(() => {
     openaiService = new OpenAIService('fake-api-key');
     contextService = new ContextService();
     jest.spyOn(contextService, 'saveContext');
     rateLimitService = new RateLimitService();
-    slackService = new SlackService();
-    slackHandlers = new SlackHandlers(openaiService, contextService, rateLimitService, slackService);
+    slackSummaryService = new SlackSummaryService();
+    slackQuestionService = new SlackQuestionService();
+    slackHandlers = new SlackHandlers(
+      openaiService,
+      contextService,
+      rateLimitService,
+      slackSummaryService,
+      slackQuestionService
+    );
   });
 
   describe('handleSetData', () => {

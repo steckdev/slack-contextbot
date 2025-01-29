@@ -119,7 +119,10 @@ export class OpenAIService {
   }
 
   async generateEnhancedMetadata(combinedMessages: string, usersMap: UserMap): Promise<Metadata> {
-    const participants = Object.values(usersMap);
+    let participants;
+    if (usersMap) {
+      participants = Object.values(usersMap);
+    }
 
     const prompt = `
     Please analyze the following conversation to extract actionable insights. Focus on listing these out as string[] only:
@@ -166,7 +169,7 @@ export class OpenAIService {
     
       Additional extracted metadata:
       - **Key Topics:** ${metadata.topics.join(', ')}
-      - **Action Items:** ${metadata.actions.join(', ')}
+      - **Information:** ${metadata.actions.join(', ')}
       - **Decisions:** ${metadata.decisions.join(', ')}
     
       Using this information, provide a comprehensive and thoughtful response to the question below. Ensure the response is concise and actionable:

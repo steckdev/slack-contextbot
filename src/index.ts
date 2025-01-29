@@ -4,14 +4,16 @@ import { OpenAIService } from './services/openaiService';
 import { ContextService } from './services/contextService';
 import { SlackHandlers } from './handlers/slackHandlers';
 import { RateLimitService } from './services/rateLimitService';
-import { SlackService } from './services/slackService';
+import { SlackSummaryService } from './services/slackSummaryService';
+import { SlackQuestionService } from './services/slackQuestionService';
 
 dotenv.config();
 
 const openaiService = new OpenAIService(process.env.OPENAI_API_KEY || '');
 const contextService = new ContextService();
 const rateLimitService = new RateLimitService();
-const slackService = new SlackService();
+const slackSummaryService = new SlackSummaryService();
+const slackQuestionService = new SlackQuestionService();
 
 // const receiver = new ExpressReceiver({
 //   signingSecret: process.env.SLACK_SIGNING_SECRET || '',
@@ -27,7 +29,13 @@ const app = new App({
   logLevel: LogLevel.INFO, // Enable debugging
 });
 
-const slackHandlers = new SlackHandlers(openaiService, contextService, rateLimitService, slackService);
+const slackHandlers = new SlackHandlers(
+  openaiService,
+  contextService,
+  rateLimitService,
+  slackSummaryService,
+  slackQuestionService
+);
 
 // COMMANDS
 app.command('/addhistory', slackHandlers.handleAddToHistory);
