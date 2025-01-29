@@ -29,7 +29,11 @@ describe('SlackService', () => {
         limit: 100,
         cursor: undefined,
       });
-      expect(messages).toBe('message2\nmessage1');
+      expect(messages).toBe({
+        enrichedContext: undefined,
+        messages: [{ text: 'message1' }, { text: 'message2' }],
+        userIds: [undefined],
+      });
     });
 
     it('should handle pagination', async () => {
@@ -47,10 +51,14 @@ describe('SlackService', () => {
       const messages = await slackService.fetchThreadMessagesWithEnrichment(client, 'C123', 'thread_ts');
 
       expect(client.conversations.replies).toHaveBeenCalledTimes(2);
-      expect(messages).toBe('message2\nmessage1');
+      expect(messages).toEqual({
+        enrichedContext: undefined,
+        messages: [{ text: 'message1' }, { text: 'message2' }],
+        userIds: [undefined],
+      });
     });
 
-    it('should return null if no messages are found', async () => {
+    it('should handle null with empty content if no messages are found', async () => {
       client.conversations.replies.mockResolvedValue({
         messages: [],
         has_more: false,
@@ -58,7 +66,7 @@ describe('SlackService', () => {
 
       const messages = await slackService.fetchThreadMessagesWithEnrichment(client, 'C123', 'thread_ts');
 
-      expect(messages).toBeNull();
+      expect(messages).toEqual({ enrichedContext: undefined, messages: [], userIds: [] });
     });
   });
 
@@ -98,7 +106,7 @@ describe('SlackService', () => {
       expect(messages).toBe('message2\nmessage1');
     });
 
-    it('should return null if no messages are found', async () => {
+    it('should return empty collection if no messages are found', async () => {
       client.conversations.history.mockResolvedValue({
         messages: [],
         has_more: false,
@@ -106,7 +114,7 @@ describe('SlackService', () => {
 
       const messages = await slackService.fetchThreadMessagesWithEnrichment(client, 'C123', undefined, 7);
 
-      expect(messages).toBeNull();
+      expect(messages).toEqual({ enrichedContext: '', messages: [], userIds: [] });
     });
   });
 
