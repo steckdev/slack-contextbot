@@ -168,6 +168,7 @@ export class SlackSummaryService {
     const initialResponse = await client.chat.postMessage({
       channel: channelId,
       text: 'Processing your request, please wait...',
+      thread_ts: threadTs,
     });
     const initialResponseTs = initialResponse.ts as string;
 
@@ -209,6 +210,7 @@ export class SlackSummaryService {
         channel: channelId,
         ts: initialResponseTs,
         blocks: this.createSummaryBlocks(summary, metadata, threadTs),
+        thread_ts: threadTs,
       });
     } catch (error) {
       console.error(error);
@@ -216,6 +218,7 @@ export class SlackSummaryService {
         channel: channelId,
         ts: initialResponseTs,
         text: 'There was an error processing your request.',
+        thread_ts: threadTs,
       });
     }
   }
